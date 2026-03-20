@@ -1,0 +1,117 @@
+@import "tailwindcss";
+
+/* ── Inter font ── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+/* ── Base styles ── */
+@layer base {
+  html {
+    font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    background-color: #0a0d14;
+  }
+}
+
+/* ══════════════════════════════════════════════
+   Landing — animated gradient blob
+   ══════════════════════════════════════════════ */
+@keyframes blob-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%      { transform: translate(60px, -40px) scale(1.12); }
+  50%      { transform: translate(-30px, 50px) scale(0.92); }
+  75%      { transform: translate(-50px, -20px) scale(1.06); }
+}
+.blob         { animation: blob-drift 10s ease-in-out infinite; }
+.blob-delayed { animation: blob-drift 12s ease-in-out 2s infinite reverse; }
+
+/* ══════════════════════════════════════════════
+   ResumeUploader — animated dashed border
+   ══════════════════════════════════════════════ */
+@keyframes border-dance {
+  0%   { background-position: 0 0, 100% 0, 100% 100%, 0 100%; }
+  100% { background-position: 100% 0, 100% 100%, 0 100%, 0 0; }
+}
+
+.dropzone-border {
+  /* four 1-px dashed-like gradient edges */
+  background-image:
+    linear-gradient(90deg, rgba(99,102,241,.45) 50%, transparent 50%),
+    linear-gradient(0deg, rgba(99,102,241,.45) 50%, transparent 50%),
+    linear-gradient(90deg, rgba(99,102,241,.45) 50%, transparent 50%),
+    linear-gradient(0deg, rgba(99,102,241,.45) 50%, transparent 50%);
+  background-size:
+    12px 1px,
+    1px 12px,
+    12px 1px,
+    1px 12px;
+  background-repeat: no-repeat;
+  background-position: 0 0, 100% 0, 100% 100%, 0 100%;
+  animation: border-dance 12s linear infinite;
+  /* fill actual border radius */
+  background-origin: border-box;
+  /* keep padding area clean */
+  background-clip: border-box;
+  /* fallback border for rounded corners */
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.dropzone-glow {
+  border-color: rgba(99,102,241,0.35);
+  box-shadow: 0 0 30px -5px rgba(99,102,241,0.18), inset 0 0 30px -10px rgba(99,102,241,0.06);
+}
+
+/* ══════════════════════════════════════════════
+   Skill pill fade-in
+   ══════════════════════════════════════════════ */
+@keyframes pill-in {
+  0%   { opacity: 0; transform: translateY(6px) scale(0.92); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.skill-pill {
+  animation: pill-in 0.35s ease-out both;
+}
+
+/* ══════════════════════════════════════════════
+   QuestionCard — appear animation
+   ══════════════════════════════════════════════ */
+@keyframes card-appear {
+  0%   { opacity: 0; transform: translateY(18px) scale(0.97); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.question-card-appear {
+  animation: card-appear 0.45s ease-out both;
+}
+
+/* ══════════════════════════════════════════════
+   ScoreCard — mount animation
+   ══════════════════════════════════════════════ */
+@keyframes scorecard-in {
+  0%   { opacity: 0; transform: scale(0.95); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+.scorecard-appear {
+  animation: scorecard-in 0.6s ease-out both;
+}
+
+/* ══════════════════════════════════════════════
+   FeedbackPanel — mount animation
+   ══════════════════════════════════════════════ */
+@keyframes feedback-in {
+  0%   { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.feedbackpanel-appear {
+  animation: feedback-in 0.5s ease-out 0.3s both;
+}
+
+
+
