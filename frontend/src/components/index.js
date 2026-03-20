@@ -1,3 +1,9 @@
 // Barrel export for components
-// Add component exports here as you build them
-// Example: export { default as Button } from './Button';
+export { default as AnswerInput } from './AnswerInput';
+export { default as FeedbackPanel } from './FeedbackPanel';
+export { default as HistoryDashboard } from './HistoryDashboard';
+export { default as InterviewRoom } from './InterviewRoom';
+export { default as PersonaSelector } from './PersonaSelector';
+export { default as QuestionCard } from './QuestionCard';
+export { default as ResumeUploader } from './ResumeUploader';
+export { default as ScoreCard } from './ScoreCard';

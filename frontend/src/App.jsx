@@ -1,12 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
-import { useFirebase } from './hooks/useFirebase';
-import Landing from './pages/Landing';
-import Dashboard from './pages/Dashboard';
-import Interview from './pages/Interview';
-import Results from './pages/Results';
-import NotFound from './pages/NotFound';
-import History from './pages/History';
+import { useFirebase } from './hooks';
+import { Landing, Dashboard, Interview, Results, History, NotFound } from './pages';
 
 function App() {
   const { user, loading, signInWithGoogle } = useFirebase();
