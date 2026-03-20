@@ -12,13 +12,21 @@ import {
   orderBy,
   serverTimestamp,
 } from 'firebase/firestore';
-import { auth, googleProvider, db } from '../services/firebase';
+import { auth, googleProvider, db, isFirebaseConfigured } from '../services/firebase';
+
+/** Demo-mode mock user when Firebase is not configured */
+const DEMO_USER = {
+  uid: 'demo-user',
+  displayName: 'Demo User',
+  email: 'demo@interview-simulator.local',
+  photoURL: null,
+};
 
 /**
  * useFirebase
  *
  * Exposes:
- *   user              – Firebase User | null
+ *   user              – Firebase User | null (or demo user if unconfigured)
  *   loading           – true while auth state is resolving
  *   signInWithGoogle() – opens Google sign-in popup
  *   signOut()          – signs the user out
@@ -26,11 +34,12 @@ import { auth, googleProvider, db } from '../services/firebase';
  *   getSessions()      – reads all sessions, newest first
  */
 export function useFirebase() {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(isFirebaseConfigured ? null : DEMO_USER);
+  const [loading, setLoading] = useState(isFirebaseConfigured);
 
-  /* ── Listen for auth state changes ── */
+  /* ── Listen for auth state changes (only if Firebase is configured) ── */
   useEffect(() => {
+    if (!isFirebaseConfigured) return;
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
       setUser(firebaseUser);
       setLoading(false);
@@ -40,6 +49,11 @@ export function useFirebase() {
 
   /* ── Sign in with Google ── */
   const signInWithGoogle = useCallback(async () => {
+    if (!isFirebaseConfigured) {
+      console.warn('[Demo mode] Skipping Google sign-in — no Firebase config.');
+      setUser(DEMO_USER);
+      return;
+    }
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (err) {
@@ -50,6 +64,10 @@ export function useFirebase() {
 
   /* ── Sign out ── */
   const signOut = useCallback(async () => {
+    if (!isFirebaseConfigured) {
+      setUser(null);
+      return;
+    }
     try {
       await fbSignOut(auth);
     } catch (err) {
@@ -62,6 +80,10 @@ export function useFirebase() {
   const saveSession = useCallback(
     async (sessionData) => {
       if (!user) throw new Error('Not authenticated');
+      if (!isFirebaseConfigured) {
+        console.warn('[Demo mode] saveSession — data not persisted.');
+        return 'demo-session-' + Date.now();
+      }
       const sessionsRef = collection(db, 'users', user.uid, 'sessions');
       const docRef = await addDoc(sessionsRef, {
         ...sessionData,
@@ -75,6 +97,10 @@ export function useFirebase() {
   /* ── Get all sessions (newest first) ── */
   const getSessions = useCallback(async () => {
     if (!user) return [];
+    if (!isFirebaseConfigured) {
+      console.warn('[Demo mode] getSessions — returning empty array.');
+      return [];
+    }
     const sessionsRef = collection(db, 'users', user.uid, 'sessions');
     const q = query(sessionsRef, orderBy('createdAt', 'desc'));
     const snapshot = await getDocs(q);

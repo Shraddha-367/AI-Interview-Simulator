@@ -20,10 +20,28 @@ const firebaseConfig = {
   appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const app = initializeApp(firebaseConfig);
+/**
+ * Check whether Firebase credentials are actually provided.
+ * If all values are undefined / placeholder, we run in "demo mode".
+ */
+export const isFirebaseConfigured = Boolean(
+  firebaseConfig.apiKey &&
+  firebaseConfig.apiKey !== 'your-api-key' &&
+  firebaseConfig.projectId &&
+  firebaseConfig.projectId !== 'your-project-id'
+);
 
-export const auth = getAuth(app);
-export const googleProvider = new GoogleAuthProvider();
-export const db = getFirestore(app);
+let app = null;
+let auth = null;
+let googleProvider = null;
+let db = null;
 
+if (isFirebaseConfigured) {
+  app = initializeApp(firebaseConfig);
+  auth = getAuth(app);
+  googleProvider = new GoogleAuthProvider();
+  db = getFirestore(app);
+}
+
+export { auth, googleProvider, db };
 export default app;
