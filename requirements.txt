@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+python-multipart
+openai
+pymupdf
+python-docx
+spacy
+firebase-admin
+pydantic
+python-dotenv
+requests
+fpdf2
+

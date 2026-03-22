@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+
+# Firebase & Secret Keys
+*.json
+!requirements.txt
+!package.json
+
+# IDEs
+.vscode/
+.idea/
+
+# Logs
+*.log
