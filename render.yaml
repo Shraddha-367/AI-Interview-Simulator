@@ -4,6 +4,7 @@ services:
     runtime: python
     region: oregon
     rootDir: backend
+    pythonVersion: "3.12.0"
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
@@ -14,4 +15,6 @@ services:
       - key: FIREBASE_CREDENTIALS_JSON
         sync: false
       - key: FIREBASE_STORAGE_BUCKET
+        sync: false
+      - key: CORS_ORIGINS
         sync: false
