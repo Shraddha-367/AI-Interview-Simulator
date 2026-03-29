@@ -11,6 +11,7 @@ import {
   CartesianGrid,
 } from 'recharts';
 import { useFirebase } from '../hooks/useFirebase';
+import { getUserSessions } from '../services/historyService';
 
 /* ── Persona badge colors ── */
 const PERSONA = {
@@ -49,33 +50,35 @@ function CustomTooltip({ active, payload, label }) {
 
 function HistoryDashboard() {
   const navigate = useNavigate();
-  const { getSessions } = useFirebase();
+  const { user } = useFirebase();
 
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetch = async () => {
+    const fetchSessions = async () => {
+      if (!user?.uid) {
+        setLoading(false);
+        return;
+      }
       try {
-        const data = await getSessions();
-        setSessions(data);
+        const data = await getUserSessions(user.uid);
+        setSessions(data.sessions || []);
       } catch (err) {
         toast.error('Failed to load session history');
       } finally {
         setLoading(false);
       }
     };
-    fetch();
-  }, [getSessions]);
+    fetchSessions();
+  }, [user]);
 
   /* ── Chart data ── */
   const chartData = [...sessions]
     .reverse()
     .map((s) => ({
-      date: s.createdAt?.toDate
-        ? s.createdAt.toDate().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-        : 'N/A',
-      score: s.avg_score ?? s.scores?.overall ?? 0,
+      date: s.date || 'N/A',
+      score: s.avg_score ?? 0,
     }));
 
   /* ── Loading ── */
@@ -157,20 +160,14 @@ function HistoryDashboard() {
       {/* ── Session cards ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {sessions.map((s) => {
-          const score = s.avg_score ?? s.scores?.overall ?? 0;
+          const score = s.avg_score ?? 0;
           const persona = PERSONA[s.persona] || { label: s.persona || '—', cls: 'bg-white/5 text-gray-400 border-white/10' };
-          const weakAreas = (s.feedback?.weaknesses ?? s.weak_areas ?? []).slice(0, 2);
-          const dateStr = s.createdAt?.toDate
-            ? s.createdAt.toDate().toLocaleDateString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-              })
-            : '—';
+          const weakAreas = (s.weak_areas ?? []).slice(0, 2);
+          const dateStr = s.date || '—';
 
           return (
             <div
-              key={s.id}
+              key={s.session_id}
               className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5 transition-colors hover:border-white/[0.12]"
             >
               {/* Date + persona */}

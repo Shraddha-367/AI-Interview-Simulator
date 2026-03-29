@@ -6,38 +6,68 @@ import FeedbackPanel from '../components/FeedbackPanel';
 function Results() {
   const navigate = useNavigate();
   const resetInterview = useInterviewStore((s) => s.resetInterview);
+  const evaluations = useInterviewStore((s) => s.evaluations);
+  const answers = useInterviewStore((s) => s.answers);
 
-  // TODO: replace with real data from API / Zustand
-  const scores = {
-    content: 78,
-    grammar: 85,
-    clarity: 72,
-    confidence: 68,
-    overall: 76,
-  };
+  /* ── Aggregate scores from per-question evaluations ── */
+  const hasEvaluations = evaluations.length > 0;
 
-  const keywordCoverage = {
-    found: ['React', 'Hooks', 'State Management', 'REST API'],
-    missed: ['Testing', 'CI/CD', 'TypeScript'],
-  };
+  const scores = hasEvaluations
+    ? (() => {
+        const axes = ['content', 'grammar', 'clarity', 'confidence', 'overall'];
+        const totals = {};
+        axes.forEach((a) => { totals[a] = 0; });
+        evaluations.forEach((ev) => {
+          const s = ev.scores || {};
+          axes.forEach((a) => { totals[a] += s[a] ?? 0; });
+        });
+        const result = {};
+        axes.forEach((a) => {
+          result[a] = Math.round(totals[a] / evaluations.length);
+        });
+        return result;
+      })()
+    : { content: 0, grammar: 0, clarity: 0, confidence: 0, overall: 0 };
 
-  const fillerWords = ['um', 'like', 'um', 'basically', 'like', 'you know'];
+  /* ── Aggregate keyword coverage ── */
+  const keywordCoverage = hasEvaluations
+    ? (() => {
+        const found = new Set();
+        const missed = new Set();
+        evaluations.forEach((ev) => {
+          const kc = ev.keyword_coverage || {};
+          (kc.found || []).forEach((w) => found.add(w));
+          (kc.missed || []).forEach((w) => missed.add(w));
+        });
+        return { found: [...found], missed: [...missed] };
+      })()
+    : { found: [], missed: [] };
 
-  const feedback = {
-    strengths: [
-      'Clear explanation of React component lifecycle',
-      'Good use of real-world project examples',
-    ],
-    weaknesses: [
-      'Could elaborate more on system design trade-offs',
-      'Answers were slightly rushed towards the end',
-    ],
-    improvement_tips: [
-      'Use the STAR method to structure behavioral answers with concrete metrics.',
-      'Reduce filler words by pausing briefly before answering.',
-      'Practice whiteboard-style system design with time constraints.',
-    ],
-  };
+  /* ── Aggregate filler words ── */
+  const fillerWords = hasEvaluations
+    ? evaluations.flatMap((ev) => ev.feedback?.filler_words || [])
+    : [];
+
+  /* ── Aggregate feedback ── */
+  const feedback = hasEvaluations
+    ? (() => {
+        const strengths = [];
+        const weaknesses = [];
+        const tips = [];
+        evaluations.forEach((ev) => {
+          const fb = ev.feedback || {};
+          (fb.strengths || []).forEach((s) => { if (!strengths.includes(s)) strengths.push(s); });
+          (fb.weaknesses || []).forEach((w) => { if (!weaknesses.includes(w)) weaknesses.push(w); });
+          (fb.improvement_tips || []).forEach((t) => { if (!tips.includes(t)) tips.push(t); });
+        });
+        return { strengths, weaknesses, improvement_tips: tips };
+      })()
+    : { strengths: [], weaknesses: [], improvement_tips: [] };
+
+  /* ── Next difficulty (from last evaluation) ── */
+  const nextDifficulty = hasEvaluations
+    ? evaluations[evaluations.length - 1]?.next_difficulty ?? 'Medium'
+    : 'Medium';
 
   const handleRestart = () => {
     resetInterview();
@@ -58,7 +88,9 @@ function Results() {
             Your Results
           </h1>
           <p className="mt-2 text-gray-400">
-            Here's how you performed in your practice interview.
+            {hasEvaluations
+              ? "Here's how you performed in your practice interview."
+              : 'No evaluation data available. Results will appear after completing an interview.'}
           </p>
         </div>
 
@@ -73,7 +105,7 @@ function Results() {
           keywordCoverage={keywordCoverage}
           fillerWords={fillerWords}
           feedback={feedback}
-          nextDifficulty="Hard"
+          nextDifficulty={nextDifficulty}
         />
 
         {/* Actions */}

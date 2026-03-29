@@ -79,7 +79,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # {ip: [timestamp, timestamp, ...]}
 _rate_store: dict[str, list[float]] = defaultdict(list)
-_RATE_LIMIT: int = 10          # max requests
+_RATE_LIMIT: int = 60          # max requests
 _RATE_WINDOW: float = 60.0     # per 60 seconds
 
 

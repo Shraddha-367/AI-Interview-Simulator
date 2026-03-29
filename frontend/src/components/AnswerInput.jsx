@@ -23,6 +23,7 @@ function AnswerInput({ onSubmit, disabled }) {
     isRecording,
     audioLevel,
     transcript,
+    fillerWords,
     error: voiceError,
     startRecording,
     stopRecording,
@@ -73,10 +74,10 @@ function AnswerInput({ onSubmit, disabled }) {
   const handleSubmit = useCallback(() => {
     const trimmed = answerText.trim();
     if (!trimmed || disabled || isRecording) return;
-    onSubmit(trimmed);
+    onSubmit(trimmed, fillerWords);
     setTextValue('');
     clearTranscript();
-  }, [answerText, disabled, isRecording, onSubmit, clearTranscript]);
+  }, [answerText, disabled, isRecording, onSubmit, fillerWords, clearTranscript]);
 
   /* Ctrl/Cmd + Enter shortcut */
   const handleKeyDown = (e) => {

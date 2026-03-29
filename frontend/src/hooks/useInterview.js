@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import axios from 'axios';
 import useInterviewStore from '../store/useInterviewStore';
+import { generateQuestions, evaluateAnswer } from '../services/interviewService';
 
 /**
  * Hook that drives the full interview lifecycle:
@@ -16,6 +16,7 @@ export function useInterview() {
   const difficulty = useInterviewStore((s) => s.difficulty);
   const storeSetQuestions = useInterviewStore((s) => s.setQuestions);
   const storeAddAnswer = useInterviewStore((s) => s.addAnswer);
+  const storeAddEvaluation = useInterviewStore((s) => s.addEvaluation);
 
   /* ── Local state ── */
   const [phase, setPhase] = useState('loading'); // loading | active | done
@@ -37,22 +38,19 @@ export function useInterview() {
         setPhase('loading');
         setError(null);
 
-        const { data } = await axios.post(
-          'http://localhost:8000/api/interview/generate',
-          {
-            resume_id: resumeData?.id ?? null,
-            persona,
-            difficulty,
-            num_questions: 5,
-          }
-        );
+        const data = await generateQuestions({
+          resume_data: resumeData ?? {},
+          persona: persona ?? 'hr',
+          difficulty: (difficulty ?? 'Medium').toLowerCase(),
+          num_questions: 5,
+        });
 
-        const q = Array.isArray(data) ? data : data.questions ?? [];
+        const q = data.questions ?? [];
         setQuestions(q);
         storeSetQuestions(q);
         setPhase('active');
       } catch (err) {
-        setError(err.response?.data?.message || err.message);
+        setError(err.response?.data?.detail || err.message);
         setPhase('active'); // degrade gracefully — show empty state
       }
     };
@@ -60,12 +58,13 @@ export function useInterview() {
     generate();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  /* ── Submit answer & advance ── */
+  /* ── Submit answer, evaluate, & advance ── */
   const submitAnswer = useCallback(
-    (answerText) => {
+    async (answerText, fillerWords = []) => {
+      const currentQ = questions[currentIndex];
       const entry = {
         questionIndex: currentIndex,
-        question: questions[currentIndex] ?? '',
+        question: currentQ ?? '',
         answer: answerText,
         timestamp: Date.now(),
       };
@@ -73,13 +72,36 @@ export function useInterview() {
       setAnswers(next);
       storeAddAnswer(entry);
 
+      // Fire evaluation in background (non-blocking for UX)
+      try {
+        const questionText =
+          typeof currentQ === 'object' ? currentQ.question : currentQ ?? '';
+        const expectedKeywords =
+          typeof currentQ === 'object' ? currentQ.expected_keywords ?? [] : [];
+
+        const evalResult = await evaluateAnswer({
+          question_text: questionText,
+          answer_text: answerText,
+          expected_keywords: expectedKeywords,
+          current_difficulty: (difficulty ?? 'Medium').toLowerCase(),
+          filler_words: fillerWords,
+        });
+
+        storeAddEvaluation({
+          questionIndex: currentIndex,
+          ...evalResult,
+        });
+      } catch (err) {
+        console.error('Evaluation failed (non-fatal):', err.message);
+      }
+
       if (currentIndex + 1 >= questions.length) {
         setPhase('done');
       } else {
         setCurrentIndex((i) => i + 1);
       }
     },
-    [currentIndex, questions, answers, storeAddAnswer]
+    [currentIndex, questions, answers, difficulty, storeAddAnswer, storeAddEvaluation]
   );
 
   return {

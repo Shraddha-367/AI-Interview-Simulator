@@ -2,7 +2,7 @@ import { create } from 'zustand';
 
 const useInterviewStore = create((set) => ({
   // ── Resume state ──
-  resumeData: null, // { skills:[], experience:[], projects:[] }
+  resumeData: null, // { skills:[], experience:[], projects:[], name, resume_id, ... }
   setResumeData: (data) => set({ resumeData: data }),
   clearResumeData: () => set({ resumeData: null }),
 
@@ -18,11 +18,18 @@ const useInterviewStore = create((set) => ({
   answers: [],
   isInterviewActive: false,
 
+  // ── Evaluation results (per-question) ──
+  evaluations: [],
+  sessionId: null,
+
   // ── Interview actions ──
   setQuestions: (questions) => set({ questions }),
   setCurrentQuestionIndex: (index) => set({ currentQuestionIndex: index }),
   addAnswer: (answer) =>
     set((state) => ({ answers: [...state.answers, answer] })),
+  addEvaluation: (evaluation) =>
+    set((state) => ({ evaluations: [...state.evaluations, evaluation] })),
+  setSessionId: (id) => set({ sessionId: id }),
   startInterview: () => set({ isInterviewActive: true }),
   endInterview: () => set({ isInterviewActive: false }),
 
@@ -36,6 +43,8 @@ const useInterviewStore = create((set) => ({
       currentQuestionIndex: 0,
       answers: [],
       isInterviewActive: false,
+      evaluations: [],
+      sessionId: null,
     }),
 }));
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import axios from 'axios';
+import { transcribeAudio } from '../services/speechService';
 
 /**
  * useVoiceInput
@@ -10,6 +10,7 @@ import axios from 'axios';
  *   isRecording  – bool
  *   audioLevel   – 0‒100 (from AnalyserNode RMS)
  *   transcript   – string (set after server transcription)
+ *   fillerWords  – string[] (filler words detected by backend)
  *   error        – string | null
  *   startRecording()
  *   stopRecording()   → Promise<string>  (resolves with transcript)
@@ -20,6 +21,7 @@ export function useVoiceInput() {
   const [isRecording, setIsRecording] = useState(false);
   const [audioLevel, setAudioLevel] = useState(0);
   const [transcript, setTranscript] = useState('');
+  const [fillerWords, setFillerWords] = useState([]);
   const [error, setError] = useState(null);
 
   /* ── Refs (never cause re-renders) ── */
@@ -70,6 +72,7 @@ export function useVoiceInput() {
   const startRecording = useCallback(async () => {
     setError(null);
     setTranscript('');
+    setFillerWords([]);
     chunksRef.current = [];
 
     /* 1. Request mic access */
@@ -158,26 +161,17 @@ export function useVoiceInput() {
         audioCtxRef.current = null;
         analyserRef.current = null;
 
-        /* POST to transcription endpoint */
+        /* POST to transcription endpoint via speechService */
         try {
-          const form = new FormData();
-          form.append('audio', blob, 'recording.webm');
-
-          const { data } = await axios.post(
-            'http://localhost:8000/api/speech/transcribe',
-            form,
-            {
-              headers: { 'Content-Type': 'multipart/form-data' },
-              timeout: 30000,
-            }
-          );
+          const data = await transcribeAudio(blob, 'recording.webm');
 
           const text = data?.transcript ?? '';
           setTranscript(text);
+          setFillerWords(data?.filler_words ?? []);
           resolve(text);
         } catch (err) {
           const msg =
-            err.response?.data?.message ||
+            err.response?.data?.detail ||
             err.message ||
             'Transcription failed';
           setError(msg);
@@ -190,7 +184,10 @@ export function useVoiceInput() {
   }, [stopMeter]);
 
   /* ── clearTranscript ── */
-  const clearTranscript = useCallback(() => setTranscript(''), []);
+  const clearTranscript = useCallback(() => {
+    setTranscript('');
+    setFillerWords([]);
+  }, []);
 
   /* ─────────────────────────────────────────────
      Cleanup helper & unmount
@@ -231,6 +228,7 @@ export function useVoiceInput() {
     isRecording,
     audioLevel,
     transcript,
+    fillerWords,
     error,
     startRecording,
     stopRecording,

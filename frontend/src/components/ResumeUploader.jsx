@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import useInterviewStore from '../store/useInterviewStore';
+import { uploadResume } from '../services/resumeService';
 
 const ACCEPTED_TYPES = [
   'application/pdf',
@@ -82,29 +82,15 @@ function ResumeUploader() {
     setProgress(0);
     setError('');
 
-    const formData = new FormData();
-    formData.append('file', f);
-
     try {
-      const { data } = await axios.post(
-        'http://localhost:8000/api/resume/upload',
-        formData,
-        {
-          headers: { 'Content-Type': 'multipart/form-data' },
-          timeout: 30000,
-          onUploadProgress: (e) => {
-            const pct = Math.round((e.loaded * 100) / (e.total ?? e.loaded));
-            setProgress(pct);
-          },
-        }
-      );
+      const data = await uploadResume(f, (pct) => setProgress(pct));
 
-      // data = { skills:[], experience:[], projects:[] }
+      // data = { name, skills:[], experience:[], projects:[], resume_id, ... }
       setParsed(data);
       setResumeData(data);
     } catch (err) {
       const msg =
-        err.response?.data?.message ||
+        err.response?.data?.detail ||
         err.message ||
         'Upload failed. Please try again.';
       setError(msg);
