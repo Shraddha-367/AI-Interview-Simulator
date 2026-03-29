@@ -113,9 +113,22 @@ async def rate_limit_middleware(request: Request, call_next):
 
 
 # --------------- CORS ---------------
+import os
+
+_default_origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+]
+
+# Allow additional origins via env var (comma-separated)
+_extra_origins = os.getenv("CORS_ORIGINS", "")
+_allowed_origins = _default_origins + [
+    o.strip() for o in _extra_origins.split(",") if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
