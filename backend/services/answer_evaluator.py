@@ -1,7 +1,7 @@
 """
 Answer Evaluator Service
 ------------------------
-Uses OpenAI GPT-4o to score a candidate's interview answer on four
+Uses Google Gemini to score a candidate's interview answer on four
 axes, compute a weighted overall score, detect keyword coverage, and
 provide qualitative feedback with adaptive difficulty adjustment.
 """
@@ -11,7 +11,8 @@ import os
 from typing import Any
 
 from dotenv import load_dotenv
-from openai import AsyncOpenAI, APIError
+from google import genai
+from google.genai import types
 from pydantic import ValidationError
 
 from models.evaluation_model import (
@@ -24,27 +25,27 @@ from models.evaluation_model import (
 load_dotenv()
 
 # ──────────────────────────────────────────────
-# OpenAI client (async, lazy-initialized)
+# Gemini client (lazy-initialized)
 # ──────────────────────────────────────────────
-_client: AsyncOpenAI | None = None
+_client: genai.Client | None = None
 
 
-def _get_openai_client() -> AsyncOpenAI:
-    """Return (and lazily create) the async OpenAI client."""
+def _get_gemini_client() -> genai.Client:
+    """Return (and lazily create) the Gemini client."""
     global _client
     if _client is None:
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise RuntimeError(
-                "OPENAI_API_KEY is not set. "
+                "GEMINI_API_KEY is not set. "
                 "Add it to your .env file or environment variables."
             )
-        _client = AsyncOpenAI(api_key=api_key)
+        _client = genai.Client(api_key=api_key)
     return _client
 
 
 # ══════════════════════════════════════════════
-#  GPT EVALUATION SYSTEM PROMPT
+#  EVALUATION SYSTEM PROMPT
 # ══════════════════════════════════════════════
 
 EVALUATION_PROMPT: str = (
@@ -109,7 +110,7 @@ def _fallback_evaluation(
     expected_keywords: list[str],
     current_difficulty: str,
 ) -> dict[str, Any]:
-    """Return a neutral evaluation when the GPT call fails."""
+    """Return a neutral evaluation when the API call fails."""
     overall = 50.0
     return {
         "scores": {
@@ -160,7 +161,7 @@ async def evaluate_answer(
     filler_words: list[str] | None = None,
 ) -> dict[str, Any]:
     """
-    Evaluate a candidate's answer using GPT-4o.
+    Evaluate a candidate's answer using Google Gemini.
 
     Parameters
     ----------
@@ -189,22 +190,22 @@ async def evaluate_answer(
     )
 
     try:
-        client = _get_openai_client()
-        response = await client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": EVALUATION_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.4,
-            max_tokens=1024,
+        client = _get_gemini_client()
+        response = await client.aio.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=user_prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=EVALUATION_PROMPT,
+                response_mime_type="application/json",
+                temperature=0.4,
+                max_output_tokens=1024,
+            ),
         )
 
-        raw_content = response.choices[0].message.content
+        raw_content = response.text
         data: dict = json.loads(raw_content)
 
-        # ── Extract raw scores from GPT ───────
+        # ── Extract raw scores from Gemini ────
         raw_scores = data.get("scores", {})
         content_score = int(raw_scores.get("content", 50))
         grammar_score = int(raw_scores.get("grammar", 50))
@@ -251,7 +252,7 @@ async def evaluate_answer(
 
         return result.model_dump()
 
-    except (APIError, json.JSONDecodeError, ValidationError, KeyError) as exc:
+    except (json.JSONDecodeError, ValidationError, KeyError) as exc:
         print(f"⚠️  Evaluation failed ({type(exc).__name__}): {exc}")
         return _fallback_evaluation(expected_keywords, current_difficulty)
 

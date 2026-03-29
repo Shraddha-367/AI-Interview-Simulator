@@ -1,8 +1,8 @@
 """
 Speech Processor Service
 ------------------------
-Transcribes audio using OpenAI Whisper and performs filler-word
-analysis on the resulting transcript.
+Transcribes audio using Google Gemini's multimodal capabilities
+and performs filler-word analysis on the resulting transcript.
 """
 
 import os
@@ -12,27 +12,28 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from openai import AsyncOpenAI, APIError
+from google import genai
+from google.genai import types
 
 load_dotenv()
 
 # ──────────────────────────────────────────────
-# OpenAI client (async, lazy-initialized)
+# Gemini client (lazy-initialized)
 # ──────────────────────────────────────────────
-_client: AsyncOpenAI | None = None
+_client: genai.Client | None = None
 
 
-def _get_openai_client() -> AsyncOpenAI:
-    """Return (and lazily create) the async OpenAI client."""
+def _get_gemini_client() -> genai.Client:
+    """Return (and lazily create) the Gemini client."""
     global _client
     if _client is None:
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise RuntimeError(
-                "OPENAI_API_KEY is not set. "
+                "GEMINI_API_KEY is not set. "
                 "Add it to your .env file or environment variables."
             )
-        _client = AsyncOpenAI(api_key=api_key)
+        _client = genai.Client(api_key=api_key)
     return _client
 
 
@@ -52,7 +53,18 @@ _FILLER_PATTERN: re.Pattern = re.compile(
         sorted(FILLER_PHRASES, key=len, reverse=True)) + r")\b",
     re.IGNORECASE,
 )
-_SUPPORTED_EXTENSIONS: set[str] = {".webm", ".wav", ".mp3", ".m4a", ".ogg", ".flac", ".mp4"}
+
+# Mime-type mapping for Gemini audio upload
+_MIME_TYPES: dict[str, str] = {
+    ".webm": "audio/webm",
+    ".wav": "audio/wav",
+    ".mp3": "audio/mpeg",
+    ".m4a": "audio/mp4",
+    ".ogg": "audio/ogg",
+    ".flac": "audio/flac",
+    ".mp4": "audio/mp4",
+}
+_SUPPORTED_EXTENSIONS: set[str] = set(_MIME_TYPES.keys())
 
 
 def _detect_fillers(text: str) -> dict[str, Any]:
@@ -77,7 +89,7 @@ async def transcribe_audio(
     filename: str,
 ) -> dict[str, Any]:
     """
-    Transcribe audio bytes via OpenAI Whisper-1 and analyse the result.
+    Transcribe audio bytes via Google Gemini and analyse the result.
 
     Parameters
     ----------
@@ -101,7 +113,7 @@ async def transcribe_audio(
     ValueError
         If audio is empty or the format is unsupported.
     RuntimeError
-        If the Whisper API call fails.
+        If the Gemini API call fails.
     """
     # ── Validate input ────────────────────────
     if not audio_bytes:
@@ -114,24 +126,32 @@ async def transcribe_audio(
             f"Accepted formats: {', '.join(sorted(_SUPPORTED_EXTENSIONS))}"
         )
 
-    # ── Write to temp file ────────────────────
-    tmp_path: str | None = None
+    mime_type = _MIME_TYPES[ext]
+
+    # ── Call Gemini for transcription ─────────
     try:
-        with tempfile.NamedTemporaryFile(
-            suffix=ext, delete=False,
-        ) as tmp:
-            tmp.write(audio_bytes)
-            tmp_path = tmp.name
+        client = _get_gemini_client()
 
-        # ── Call Whisper API ──────────────────
-        client = _get_openai_client()
-        with open(tmp_path, "rb") as audio_file:
-            transcription = await client.audio.transcriptions.create(
-                model="whisper-1",
-                file=audio_file,
-            )
+        # Upload audio as inline data for Gemini multimodal
+        audio_part = types.Part.from_bytes(
+            data=audio_bytes,
+            mime_type=mime_type,
+        )
 
-        transcript: str = transcription.text.strip()
+        response = await client.aio.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=[
+                audio_part,
+                "Transcribe this audio exactly as spoken. "
+                "Return ONLY the raw transcript text, no formatting, no timestamps, no markdown.",
+            ],
+            config=types.GenerateContentConfig(
+                temperature=0.0,
+                max_output_tokens=4096,
+            ),
+        )
+
+        transcript: str = response.text.strip()
 
         # ── Filler-word analysis ──────────────
         filler_info = _detect_fillers(transcript)
@@ -147,24 +167,11 @@ async def transcribe_audio(
             "duration_seconds": duration_seconds,
         }
 
-    except APIError as exc:
-        raise RuntimeError(
-            f"Whisper API error: {exc.message}"
-        ) from exc
-
     except ValueError:
         # Re-raise validation errors as-is
         raise
 
     except Exception as exc:
         raise RuntimeError(
-            f"Unexpected error during transcription: {exc}"
+            f"Gemini transcription error: {exc}"
         ) from exc
-
-    finally:
-        # ── Clean up temp file ────────────────
-        if tmp_path and os.path.exists(tmp_path):
-            try:
-                os.remove(tmp_path)
-            except OSError:
-                pass

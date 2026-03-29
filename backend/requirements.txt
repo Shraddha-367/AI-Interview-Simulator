@@ -1,7 +1,7 @@
 fastapi
 uvicorn
 python-multipart
-openai
+google-genai
 pymupdf
 python-docx
 spacy
@@ -10,4 +10,3 @@ pydantic
 python-dotenv
 requests
 fpdf2
-

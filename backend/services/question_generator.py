@@ -1,7 +1,7 @@
 """
 Question Generator Service
 --------------------------
-Uses OpenAI GPT-4o to generate personalised interview questions
+Uses Google Gemini to generate personalised interview questions
 based on the candidate's parsed resume data, interviewer persona,
 and difficulty level.
 """
@@ -12,7 +12,8 @@ import uuid
 from typing import Any
 
 from dotenv import load_dotenv
-from openai import AsyncOpenAI, APIError
+from google import genai
+from google.genai import types
 from pydantic import ValidationError
 
 from models.question_model import GeneratedQuestion, QuestionsPayload
@@ -21,27 +22,27 @@ load_dotenv()
 
 
 # ──────────────────────────────────────────────
-# OpenAI client (async, lazy-initialized)
+# Gemini client (lazy-initialized)
 # ──────────────────────────────────────────────
-_client: AsyncOpenAI | None = None
+_client: genai.Client | None = None
 
 
-def _get_openai_client() -> AsyncOpenAI:
-    """Return (and lazily create) the async OpenAI client."""
+def _get_gemini_client() -> genai.Client:
+    """Return (and lazily create) the Gemini client."""
     global _client
     if _client is None:
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
             raise RuntimeError(
-                "OPENAI_API_KEY is not set. "
+                "GEMINI_API_KEY is not set. "
                 "Add it to your .env file or environment variables."
             )
-        _client = AsyncOpenAI(api_key=api_key)
+        _client = genai.Client(api_key=api_key)
     return _client
 
 
 # ══════════════════════════════════════════════
-#  GPT SYSTEM PROMPT TEMPLATES
+#  SYSTEM PROMPT TEMPLATES
 # ══════════════════════════════════════════════
 
 HR_PROMPT: str = (
@@ -211,7 +212,7 @@ def _fallback_questions(
             {
                 "type": "behavioral", "question": "Tell me about a time you failed and what you learned from it. Please use the Situation-Task-Action-Result format.",
                 "topic": "Resilience", "expected_keywords": ["mistake", "reflection", "improvement", "growth"],
-                "time_limit_seconds": 120,
+                "time_limit_seconds": 150,
             },
             {
                 "type": "behavioral", "question": "Describe a situation where you had to collaborate with difficult stakeholders. What actions did you take and what was the result?",
@@ -238,7 +239,7 @@ def _fallback_questions(
 def _build_user_prompt(
     resume_data: dict, persona: str, difficulty: str, num_questions: int,
 ) -> str:
-    """Compose the user message sent to GPT-4o."""
+    """Compose the user message sent to Gemini."""
 
     name = resume_data.get("name", "the candidate")
     skills = resume_data.get("skills", [])
@@ -280,7 +281,7 @@ async def generate_questions(
     num_questions: int = 5,
 ) -> list[dict[str, Any]]:
     """
-    Generate personalised interview questions using GPT-4o.
+    Generate personalised interview questions using Google Gemini.
 
     Parameters
     ----------
@@ -306,28 +307,28 @@ async def generate_questions(
     system_prompt = _PERSONA_PROMPTS[persona]
     user_prompt = _build_user_prompt(resume_data, persona, difficulty, num_questions)
 
-    # ── Call OpenAI ────────────────────────────
+    # ── Call Gemini ────────────────────────────
     try:
-        client = _get_openai_client()
-        response = await client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.7,
-            max_tokens=2048,
+        client = _get_gemini_client()
+        response = await client.aio.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=user_prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=system_prompt,
+                response_mime_type="application/json",
+                temperature=0.7,
+                max_output_tokens=2048,
+            ),
         )
 
-        raw_content = response.choices[0].message.content
+        raw_content = response.text
         data = json.loads(raw_content)
 
         # Validate with Pydantic
         payload = QuestionsPayload(**data)
         return [q.model_dump() for q in payload.questions]
 
-    except (APIError, json.JSONDecodeError, ValidationError, KeyError) as exc:
+    except (json.JSONDecodeError, ValidationError, KeyError) as exc:
         print(f"⚠️  Question generation failed ({type(exc).__name__}): {exc}")
         return _fallback_questions(persona, difficulty, num_questions)
 
