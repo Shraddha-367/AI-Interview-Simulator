@@ -118,6 +118,9 @@ import os
 _default_origins = [
     "http://localhost:5173",
     "http://localhost:3000",
+    "https://frontend-cnryq09sp-vinnies-projects-3b4c43c2.vercel.app",
+    "https://frontend-3jhpq9e37-vinnies-projects-3b4c43c2.vercel.app",
+    "https://frontend-dcryw90ds-vinnies-projects-3b4c43c2.vercel.app",
 ]
 
 # Allow additional origins via env var (comma-separated)
